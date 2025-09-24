@@ -65,13 +65,18 @@
             // 获取名为 'someParam' 的参数值
             const someParam = params.get('data');
             const redirectTo = params.get('redirectTo');
+            const host = params.get('host');
             console.log('URL 参数 someParam:', someParam,redirectTo);
             // let url1 = redirectTo + '?error=server_error&error_code=422' + '&error_description=The+Telegram+account+has+already+been+associated.'
             // window.location.assign(redirectTo)
             // return
 
             try {
-                let response = await fetch("/linkidentity/telegram",{
+                let url = `/linkidentity/telegram`
+                if (host) {
+                    url = host + url
+                }
+                let response = await fetch(url,{
                     method:"POST",
                     body:JSON.stringify(user),
                     headers:{
