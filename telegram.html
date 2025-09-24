@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Telegram Account</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            text-align: center;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #user-info {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Link Telegram Account</h1>
+        <p>Please link your Telegram account:</p>
+
+        <!-- Telegram Login Widget -->
+        <script async src="https://telegram.org/js/telegram-widget.js?22"
+                data-telegram-login="shenliu_bot"
+                data-size="large"
+                data-radius="8"
+                data-onauth="onTelegramAuth(user)"
+                data-request-access="write"></script>
+
+        <div id="user-info"></div>
+    </div>
+
+    <script>
+        async function onTelegramAuth(user) {
+            // 这里应该发送用户数据到您的服务器进行验证
+            // 出于演示目的，我们只是显示用户信息
+            console.log(user);
+            const userInfo = document.getElementById('user-info');
+            userInfo.style.display = 'block';
+            userInfo.innerHTML = '<h3>Logged in successfully!</h3>' +
+                '<p>Name: ' + user.first_name + ' ' + user.last_name + '</p>' +
+                '<p>Telegram ID: ' + user.id + '</p>' +
+                '<p>Username: @' + user.username + '</p>';
+
+
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // 获取名为 'someParam' 的参数值
+            const someParam = params.get('data');
+            const redirectTo = params.get('redirectTo');
+            console.log('URL 参数 someParam:', someParam,redirectTo);
+            // let url1 = redirectTo + '?error=server_error&error_code=422' + '&error_description=The+Telegram+account+has+already+been+associated.'
+            // window.location.assign(redirectTo)
+            // return
+
+            try {
+                let response = await fetch("/linkidentity/telegram",{
+                    method:"POST",
+                    body:JSON.stringify(user),
+                    headers:{
+                        'Content-Type':'application/json',
+                        authorization:"Bearer " + someParam,
+                    }
+                })
+                let responseData = await response.json()
+                console.log("responseData =",responseData)
+                
+                console.log("redirectTo =",redirectTo)
+                if (responseData && responseData.valid) {
+                    console.log('successfully')
+                    // window.location.href = redirectTo
+                    window.location.assign(redirectTo)
+                } else {
+                    let error_msg = 0
+                    console.log('responseData linked = ',responseData.linked)
+                    if (responseData && responseData.linked == 1) {
+                        // error_msg = 'The+current+user+has+already+associated+a+Telegram+account'
+                        error_msg = 421
+                    }
+                    if (responseData && responseData.linked == 2) {
+                        // msg = 'Telegram+account+already+been+used'
+                        // error_msg = 'Telegram'
+                        error_msg = 423
+                    }
+                    console.log('responseData linked assign = ',responseData.linked,error_msg)
+                    // let url = redirectTo + '?error=server_error&error_code=422' + '&error_description=' + msg
+                    let url = redirectTo + '?error=server_error&error_code=' +  error_msg
+
+                     window.location.assign(url)
+                    // window.location.href = 
+                }
+            } catch (error) {
+                console.log("error =",error)
+                let url = redirectTo + '?error=server_error&error_code=422' + '&error_description='
+                // window.location.href = redirectTo + '?error=server_error&error_code=422' + '&error_description=' + error.message
+                 window.location.assign(url)
+            }
+            // 在实际应用中，您应该在这里处理用户认证逻辑
+            
+        }
+    </script>
+</body>
+</html>
