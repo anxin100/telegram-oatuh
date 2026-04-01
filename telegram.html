@@ -42,13 +42,47 @@
                 data-radius="8"
                 data-onauth="onTelegramAuth(user)"
                 data-request-access="write"></script> -->
-        <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="testHapeBot" data-size="large" data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
 
+        <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="testHapeBot" data-size="large" data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
 
         <div id="user-info"></div>
     </div>
 
     <script>
+        /** 进入页面时发起的换 token 请求，onTelegramAuth 里 await 同一次结果，避免重复打接口 */
+        let telegramAccessTokenPromise = null
+
+        async function getAccessToken(backUrl, code) {
+            if (!backUrl || !code) {
+                return null
+            }
+            const back_url =
+                backUrl.replace(/\/$/, '') +
+                '/frontend/api/v1/telegram/login/access?code=' +
+                encodeURIComponent(code)
+            const back_response = await fetch(back_url, {
+                method: 'GET',
+            })
+            if (back_response.ok) {
+                const back_responseData = await back_response.json()
+                return back_responseData.data
+            }
+            return null
+        }
+
+        ;(function prefetchAccessTokenOnLoad() {
+            const url = new URL(window.location.href)
+            const params = new URLSearchParams(url.search)
+            const code = params.get('data')
+            const backUrl = params.get('backUrl')
+            if (backUrl && code) {
+                telegramAccessTokenPromise = getAccessToken(backUrl, code)
+                telegramAccessTokenPromise.then(function (token) {
+                    console.log('getAccessToken on page load:', token ? 'ok' : 'null')
+                })
+            }
+        })()
+
         async function onTelegramAuth(user) {
             // 这里应该发送用户数据到您的服务器进行验证
             // 出于演示目的，我们只是显示用户信息
@@ -68,24 +102,33 @@
             const someParam = params.get('data');
             const redirectTo = params.get('redirectTo');
             const host = params.get('host');
+            const backUrl = params.get('backUrl');
             console.log('URL 参数 someParam:', someParam,redirectTo);
             // let url1 = redirectTo + '?error=server_error&error_code=422' + '&error_description=The+Telegram+account+has+already+been+associated.'
             // window.location.assign(redirectTo)
             // return
 
             try {
+                let access_token = telegramAccessTokenPromise
+                    ? await telegramAccessTokenPromise
+                    : await getAccessToken(backUrl, someParam)
+                console.log("access_token =",access_token)
+                if (!access_token) {
+                    let url = redirectTo + '?error=server_error&error_code=' + 422 + '&error_description=' + 'user+not+login'
+                    window.location.assign(url)
+                    return
+                }
+
                 let url = `/api/v1/auth/linkidentity/telegram`
                 if (host) {
                     url = host + url
                 }
                 let response = await fetch(url,{
                     method:"POST",
-                    body:JSON.stringify({
-                        init_data:JSON.stringify(user),
-                    }),
+                    body:JSON.stringify(user),
                     headers:{
                         'Content-Type':'application/json',
-                        authorization:"Bearer " + someParam,
+                        authorization:"Bearer " + access_token,
                     }
                 })
                 let responseData = await response.json()
@@ -95,6 +138,9 @@
                 if (responseData && responseData.valid) {
                     console.log('successfully')
                     // window.location.href = redirectTo
+                    if (!redirectTo.includes('http')) {
+                        redirectTo = host + redirectTo
+                    }
                     window.location.assign(redirectTo)
                 } else {
                     let error_msg = 0
